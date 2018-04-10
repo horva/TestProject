@@ -26,6 +26,16 @@ import ApolloClient from 'apollo-boost';
 import { ApolloProvider, Query, Mutation, graphql, compose } from 'react-apollo';
 
 
+const rootReducer = combineReducers({
+  form: formReducer
+})
+
+const store = createStore(
+  rootReducer,
+  window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__()
+)
+
+
 const client = new ApolloClient({
   uri: "http://127.0.0.1:5000/graphql"
 });
@@ -62,7 +72,7 @@ const DELETE_PERSON = gql`
       }
     }
   }
-`
+`;
 
 const CREATE_PERSON = gql`
   mutation CreatePerson($name: String, $age: Int) {
@@ -74,10 +84,15 @@ const CREATE_PERSON = gql`
       }
     }
   }
-`
+`;
 
 const Loading = (props) => <Text>Loading...</Text>;
-const Error = (props) => <Text>Error...</Text>;
+const Error = (props) => {
+  console.log(props.error);
+  return (
+    <Text>Error...</Text>
+  );
+};
 
 const PersonList = (props) => {
 
@@ -103,7 +118,7 @@ const PersonList = (props) => {
       />
       {persons}
     </View>
-  );
+  )
 }
 
 class ListScreen extends Component {
@@ -111,7 +126,7 @@ class ListScreen extends Component {
     const { loading, error, persons } = this.props.fetchAllPersons;
 
     if (loading) return <Loading />;
-    if (error) return <Error />;
+    if (error) return <Error error={error} />;
     return <PersonList persons={persons} navigation={this.props.navigation} />;
   }
 }
@@ -119,7 +134,11 @@ class ListScreen extends Component {
 const ListScreenWithData = graphql(
   fetchAllPersons, {
     name: "fetchAllPersons",
-    options: () => ({ fetchPolicy: "network-only" })
+    // options: () => ({ fetchPolicy: "network-only" })
+    options: (props) => ({
+      forceFetch: true,
+      fetchPolicy: 'network-only'
+    })
   }
 )(ListScreen);
 
@@ -190,55 +209,52 @@ function TextField(props) {
   );
 };
 
-class CreatePersonForm extends Component {
-  render() {
-    // const { handleSubmit } = props;
-    console.log(">>>>", this);
-    return (
-      <Mutation mutation={DELETE_PERSON}>
-        {createPerson => (
-          <View style={styles.container}>
-            <TextField
-              label={"Name"}
-              name={"name"}
-              placeholder={"Enter your name"}
-            />
-            <Button
-              title="Create"
-              onPress={
-                () => {
-                  console.log(">>>>", this)
-                  // createPerson({ variables: { uuid: this.props.uuid } });
-                  // this.props.navigation.goBack();
-                }
-              }
-            />
-          </View>
-        )}
-      </Mutation>
-    );
-  }
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+function submit(values, dispatch, props) {
+  props.createPerson({ variables: values })
+  props.navigation.goBack();
 }
 
-const rootReducer = combineReducers({
-  form: formReducer
-})
-
-const store = createStore(rootReducer)
+let CreatePersonForm = ({ handleSubmit }) => (
+  <View style={styles.container}>
+    <View style={styles.row}>
+      <TextField label={"Name"} name={"name"} placeholder={"Enter your name"} />
+    </View>
+    <View style={styles.row}>
+      <TextField label={"Age"} name={"age"} placeholder={"Enter your age"} />
+    </View>
+    <View style={styles.row}>
+      <Button title="Create" onPress={() => { handleSubmit() }} />
+    </View>
+  </View>
+)
 
 CreatePersonForm = reduxForm({
-  form: 'createPerson'
+  form: 'createPerson',
+  onSubmit: submit
 })(CreatePersonForm)
+
+CreatePersonForm = graphql(CREATE_PERSON, {
+  name: "createPerson",
+  // options: {
+  //   update: (proxy, { data: { createLocation: { location } } }) => {
+  //     const data = proxy.readQuery({ query: currentAccountQuery });
+  //     data.currentAccount.locations.push(location);
+  //     proxy.writeQuery({ query: currentAccountQuery, data });
+  //   }
+  // }
+})(CreatePersonForm);
 
 class CreateScreen extends Component {
   render() {
     return (
-      <CreatePersonForm />
+      <CreatePersonForm navigation={this.props.navigation} />
     )
   }
 }
 
-store.subscribe(() => { console.log(store.getState()) });
+// store.subscribe(() => { console.log(store.getState()) });
 
 class DetailsScreen extends Component {
   render() {
@@ -250,7 +266,7 @@ class DetailsScreen extends Component {
           {({ loading, error, data }) => {
 
             if (loading) return <Loading />;
-            if (error) return <Error />;
+            if (error) return <Error error={error} />;
 
             return (
               <Wrap>
@@ -326,9 +342,13 @@ export default class App extends Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5FCFF',
+  },
+  row: {
+    flex: 0.1
   },
   welcome: {
     fontSize: 20,
